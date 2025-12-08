@@ -330,75 +330,34 @@
 			<div class="main-content-block">
 				<h1>Background and Related Work</h1>
 
-				<p>
-				Transformers have become popular in time-series forecasting, but whether their attention mechanisms <em>actually learn meaningful temporal structure</em> is less explored. Several recent works directly motivate our study.
-				</p>
+				<p>There are more transformers being used in time-series forecasting, but whether their attention mechanisms <em>actually learn meaningful temporal structure</em> is less explored. Several recent works directly motivate our study.		</p>
 
 				<b>Transformers Often Fail to Capture Temporal Dependencies</b>
 
-				<p>
-				Zeng et al. (2022) showed that simple linear models (e.g., DLinear) outperform many Transformer variants when trained fairly, arguing that self-attention often fails to discover lag dependencies and instead benefits from dataset or training biases.
-				</p>
-
-				<p>
-				This raises the key question driving our work: Does attention succeed under certain time-series distributions and fail under others?
+				<p>Zeng et al. (2022) showed that simple linear models (e.g., DLinear) outperform many Transformer variants when trained fairly, arguing that self-attention often fails to discover lag dependencies and instead benefits from dataset or training biases. This raises the key question driving our work: Does attention succeed under certain time-series distributions and fail under others?
 				</p>
 
 				<b>Sparse Attention as an Inductive Bias</b>
 
 				<p>
-				Informer (Zhou et al., 2021) introduced <b> ProbSparse attention</b>, which selects dominant queries and enforces sparsity—directly testsimplicitly assuming that only a few past lags matter. This matches classical time-series intuition and may expose temporal structure more clearly than dense attention. Our study is inspired by this and set regularization terms carefully for training our Transformer.
+          Informer (Zhou et al., 2021) introduced ProbSparse attention, which selects dominant queries and enforces sparsity—implicitly assuming that only a few past lags matter. This matches classical time-series intuition and may expose temporal structure more clearly than dense attention. Our study inspired by this and set regularization terms carefully for training our Transformer.
 				</p>
 
 				<b>Attention Behavior Depends on Statistical Properties of the Data</b>
 
 				<p>
-				Recent architectures highlight mismatches between standard self-attention and real temporal dynamics:
+          Recent architectures also highlight challenges between standard self-attention and real temporal dynamics. For example, the Non-Stationary Transformer (Liu et al., 2022) shows that common normalization steps can inadvertently remove distributional shifts, leading to diffuse, high-entropy attention maps, while Autoformer (Wu et al., 2021) demonstrates that self-attention often fails to capture periodic structure, requiring an alternative auto-correlation mechanism. Together, these findings indicate that properties such as stationarity, volatility clustering, jumps, and regime changes can fundamentally shape how attention behaves.
 				</p>
 
-				<ul>
-					<li>
-					<b>Non-Stationary Transformer</b> (Liu et al., 2022): normalization can erase distributional shifts, yielding diffuse, high-entropy attention.
-					</li>
-					<li>
-					<b>Autoformer</b>  (Wu et al., 2021): self-attention fails to capture periodicity, requiring an auto-correlation mechanism instead.
-					</li>
-				</ul>
-
-				<p>
-				These works suggest that <b>stationarity, volatility, jumps, and regimes </b>influence attention behavior, precisely the distributional angle we investigate.
-				</p>
-			
 				<b>Why Our Work Fills a Gap</b>
 
 				<p>
-				Most prior research benchmarks forecasting accuracy or designs new architectures. Very few studies directly ask:
+          Most prior work on time-series Transformers focuses on forecasting accuracy or architectural improvements, rather than examining how attention behaves under different statistical regimes. Very few studies ask whether attention meaningfully reflects temporal structure when the underlying data come with properties hard to capture. 
 				</p>
 
-        <div class="highlight-box">
-  				<p>
-  				<b>How does attention behave when the underlying time series comes from different statistical distributions, such as AR, jump diffusion, seasonality? </b>
-  				</p>
-        </div>
-
-				<p>
-				Our project fills this gap by providing:
-				</p>
-
-				<ul>
-					<li>
-					a <b>controlled univariate synthetic benchmark</b>,
-					</li>
-					<li>
-					explicit <b>dense vs. sparse attention comparison</b>,
-					</li>
-					<li>
-					<b>entropy and sparsity-based analysis</b>, and
-					</li>
-					<li>
-					explanations connecting <b>attention patterns ↔ underlying data-generating processes</b>.
-					</li>
-				</ul>
+        <p>
+          Our project fills this gap by constructing a controlled univariate synthetic benchmark spanning these distributions and training both dense and sparse (ProbSparse) Transformers under identical conditions. We analyze attention using entropy, sparsity, and pattern-detection metrics to quantify how statistical properties shape learned dependencies. This allows us to directly connect attention patterns to data-generating processes, revealing when attention is informative and provide guidance on further data preprocessing on real data.
+        </p>
 			</div>
 			<div class="margin-right-block">
 				<b>Key papers we build on</b><br>
@@ -424,40 +383,39 @@
 				<h1>Methods</h1>
 
 				<p>
-				To study how statistical properties of time series influence the behavior of Transformers, we built a suite of experiments using synthetic data. By generating time series with known distributional structure (e.g., stationarity, autocorrelation, regime switching), we can isolate how these properties affect attention maps and prediction performance.
+          We begin with synthetic data to only focus on the effect of distributional structure on Transformer attention. Real-world time series combine many factors at once, so starting with controlled generators allows us to see how attention behaves when only one property varies (heavy tails, jumps, trend shifts, seasonality). After establishing these baselines, we extend the analysis to real data(S&P 500, Solar) chosen because their large-scale structure aligns with certain synthetic data, enabling us to test whether the attention behaviors observed in controlled settings persist in real data.
 				</p>
 
 				<h2>Model Architecture</h2>
 
 				<p>
-				We employ a Transformer encoder architecture for time series forecasting that takes a sequence of L past observations and predicts H future values. The architecture consists of four main components: (1) an input projection layer that maps one-dimensional time series values to d_model-dimensional embeddings, (2) sinusoidal positional encodings to capture temporal ordering, (3) a stack of Transformer encoder layers, each containing multi-head self-attention and position-wise feedforward networks with residual connections and layer normalization, and (4) an output projection layer that maps the encoded representations to scalar forecasts.
+          We use a lightweight 2-layer encoder-only Transformer designed expressly for interpretability. The model takes a window of L=100 past observations and predicts H=20 future values. Each input window is mapped to a d_model = 64 ​dimensional embedding to heads to specialize while maintaining attention pattern readability. Two Transformer encoder layers, each containing four head self-attention, feedforward blocks, residual connections, and layer normalization. The multi-head structure allows different heads to specialize in different types of temporal dependencies. The final hidden states are linearly projected to produce H=20 future values. We implement a custom forward pass to extract raw (batch,head,L,L) attention matrices from every layer, enabling entropy, sparsity, and structural analysis of attention behavior. All series are normalized using training-set statistics for comparability across generators, and all models are trained for a fixed 50-epoch schedule to ensure no training variability.
 				</p>
-
-        <p>
-		The multi-head self-attention mechanism enables each position to attend to all positions in the input sequence, capturing long-range dependencies and temporal patterns. The multi-head design allows different attention heads to specialize in different types of relationships (e.g., local vs. global dependencies, short-term vs. long-term patterns).
-		</p>
-
-		<p>
-		The model receives a fixed-length window of L = 100 consecutive time points as input, with sequences created using a sliding window approach. The model predicts H = 20 future time points, trained to minimize mean squared error (MSE) between predicted and actual future values. All time series are normalized to zero mean and unit variance using training set statistics, ensuring fair comparison of attention patterns across different data generating processes.	
-		</p>
 
         <h2>Synthetic Data Generation</h2>
 
         <p>
-			We train the Transformer on 6 different types of synthetic time series, each designed to exhibit distinct statistical properties: 
+          We generate a suite of univariate time series, each chosen to isolate a specific statistical property:
 		</p>
 
         <ul>
-          <li><b>HeavyTailedAR1:</b> AR(1) process with Student-t noise producing fat-tailed outliers</li>
-          <li><b>JumpDiffusion:</b>  drift-diffusion process with random discontinuous jumps.</li>
-          <li><b>TrendBreaks:</b> linear trends with structural breaks.</li>
-          <li><b>SeasonTrendOutliers:</b> sinusoidal patterns with linear trend and sparse outliers.</li>
-          <li><b>MultiSeasonality:</b> complex overlapping cycles at multiple frequencies.</li>
+          <li><b>HeavyTailedAR1:</b> persistent process with rare, extreme Student-t shocks.</li>
+          <li><b>JumpDiffusion:</b>  smooth diffusion punctuated by discontinuous jumps.</li>
+          <li><b>TrendBreaks:</b> piecewise-linear segments with abrupt slope changes.</li>
+          <li><b>SeasonTrendOutliers:</b> sinusoidal seasonality overlaid with trend and occasional large deviations.</li>
+          <li><b>MultiSeasonality:</b> two superimposed periodic signals with different frequencies.</li>
         </ul>
 
         <p>
-			Each time series is generated with length 2000 points, split into 70% training, 15% validation, and 15% test sets.
+          Each dataset (length 2000) is split into 70% train, 15% validation, and 15% test. Because each generator embodies a single dominant statistical regime, we can directly inspect whether attention maps reflect:
 		</p>
+      <ul>
+            <li>significant lag structure (AR, trend)</li>
+            <li>volatility clustering or uncertainty (heavy tails, jumps)</li>
+            <li>periodic recurrence (seasonality)</li>
+            <li>regime segmentation (trend breaks)</li>
+          </ul>
+
 			</div>
 			<div class="margin-right-block">
 			</div>
@@ -469,54 +427,12 @@
       </div>
       <div class="main-content-block">
         <img src="./images/synthetic_data.png"
-             width="650px"
+             width="950px"
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
         <b>Figure 2.</b><br>
         Synthetic datasets used in our study: heavy-tailed AR(1), jump diffusion, trend breaks, seasonal with trend and outliers, and multi-seasonal time series.
-      </div>
-    </div>
-
-    <!-- METHODS: REAL DATA & METRICS -->
-    <div class="content-margin-container">
-      <div class="margin-left-block">
-      </div>
-      <div class="main-content-block">
-
-        <h2>Real Data</h2>
-
-        <p>
-        To test whether our synthetic findings transfer to real-world settings, we also train on:
-        </p>
-
-        <ul>
-          <li><b>S&amp;P 500 daily returns:</b> a noisy financial series with mild autocorrelation, volatility clustering, and occasional jumps.</li>
-          <li><b>Solar power generation:</b> hourly solar output with strong daily seasonality, weather-driven variability, and long-term trends.</li>
-        </ul>
-
-        <p>
-        These datasets combine several of the synthetic patterns in a more realistic, noisy way and allow us to see whether attention behaves more like in the “structured” or “noise-dominated” synthetic settings.
-        </p>
-
-				<h2>Evaluation Metrics</h2>
-
-				<p>
-				We evaluate each model using:
-				</p>
-
-				<ul>
-					<li><b>Forecasting accuracy:</b> mean squared error (MSE) on held-out test windows.</li>
-					<li><b>Attention heatmaps:</b> visual inspection of which lags each head attends to for representative windows.</li>
-					<li><b>Attention entropy:</b> per-head Shannon entropy over the attention distribution, averaged across timesteps.</li>
-					<li><b>Localization indices:</b> simple statistics measuring how much probability mass each head places on a small set of lags versus spreading it uniformly.</li>
-				</ul>
-
-				<p>
-				By comparing these diagnostics across datasets and architectures, we can distinguish cases where attention genuinely tracks meaningful temporal structure from those where it degenerates into diffuse “noise.”
-				</p>
-      </div>
-      <div class="margin-right-block">
       </div>
     </div>
 
@@ -539,12 +455,6 @@
 		X_t = \phi X_{t-1} + \epsilon_t,
 		\]
 		</p>
-
-		<p>
-		\(\phi = 0.7\): series has short memory.<br>
-		Student-t noise with \(\text{df} = 3\): very heavy-tailed shocks which incur huge spikes.
-		</p>
-
       </div>
       <div class="margin-right-block">
       </div>
@@ -562,7 +472,7 @@
       </div>
       <div class="margin-right-block">
         <b>Figure 3.</b><br>
-        Sample heavy-tailed AR(1) trajectories with occasional extreme spikes driven by Student-t shocks.
+        Heavy-tailed AR(1) training curves: the model is able to memorize patterns present in the training windows, but it fails to generalize
       </div>
     </div>
 
@@ -573,10 +483,10 @@
       <div class="main-content-block">
 
         <p>
-			When trained on the HeavyTailedAR1 dataset, the Transformer exhibits a clear mismatch between training and validation performance: the training loss decreases steadily, but the validation loss remains flat and eventually worsens. This indicates that although the model is able to memorize patterns present in the training windows, it fails to generalize to unseen samples. The core difficulty lies in the data-generating process itself. Heavy-tailed AR(1) dynamics contain occasional, extremely large shocks drawn from a Student-t distribution; these shocks strongly distort the temporal structure and dominate the local embeddings, causing rare events in one sample to be entirely unrelated to those in another. Since the location and magnitude of outliers differ across the training and validation sets, any pattern the model learns around a specific shock does not transfer, leading to overfitting and poor out-of-sample performance.
+          The HeavyTailedAR1 series (\(\phi = 0.7\), Student-t noise with \(\text{df} = 3\)) produces occasional extreme shocks that dominate the temporal structure. And our Transformer exhibits a clear mismatch between training and validation performance: the training loss decreases steadily, but the validation loss remains flat and eventually worsens. This indicates that although the model is able to memorize patterns present in the training windows, it fails to generalize.This mismatch arises because heavy-tailed shocks appear at different positions across samples; any pattern learned around a specific outlier does not transfer.
         </p>
 
-		<p>The attention maps illustrate this phenomenon directly. Several heads in the first layer show diagonal or offset-diagonal patterns, reflecting the model’s attempt to capture underlying AR(1) lag structure. However, these diagonals are repeatedly interrupted by vertical stripes and bright attention bands centered on a few timesteps—precisely where heavy-tailed outliers occur. I These vertical bands appear either near the right edge of the map, where the most recent timesteps reside, or at specific interior positions corresponding to extreme outliers.In some heads, short diagonal fragments accumulate into larger vertical columns, showing that the model repeatedly attends to the same shock across many query positions. This behavior is entirely consistent with the statistical properties of heavy-tailed AR(1): outliers propagate through the autoregressive recursion, creating long-lived effects that the model treats as salient. Yet because each sample contains shocks at different locations, these learned saliency patterns do not generalize beyond the training set. As a result, the Transformer learns visually interpretable and distribution-specific attention behaviors that fail to improve forecasting accuracy on new sequences.</p>
+        <p>The attention maps show this breakdown clearly. Although some heads display faint diagonal structure consistent with AR(1) lag dependence, these diagonals repeatedly collapse into bright vertical stripes at shock locations. Layer 0 already exhibits concentrated columns near the most recent timesteps. In some heads, short diagonal fragments accumulate into larger vertical columns, showing that the model repeatedly attends to the same shock across many query positions. This behavior is entirely consistent with the statistical properties of heavy-tailed AR(1): outliers propagate through the autoregressive recursion, creating long-lived effects that the model treats as salient. Yet because each sample contains shocks at different locations, these learned saliency patterns do not generalize beyond the training set. Entropy curves most clearly in L0H0, L1H1, and L1H2 reveal localized collapses, confirming that the model assigns almost all attention mass to the outlier and its autoregressive tail. As a result, the Transformer learns visually interpretable and distribution-specific attention behaviors that fail to improve forecasting accuracy on new sequences.</p>
 
 		<!-- figure for heavy-tailed AR1 attention -->
         <img src="./images/AR1_attention.png"
@@ -585,7 +495,23 @@
       </div>
       <div class="margin-right-block">
         <b>Figure 4.</b><br>
-        Attention heatmaps for the heavy-tailed AR(1) model, showing vertical bands where attention concentrates on outlier timesteps and their propagated effects.
+        Attention heatmaps for the heavy-tailed AR(1) model, showing diagonals repeatedly collapse into bright vertical stripes at shock locations.
+      </div>
+    </div>
+
+    <!-- AR(1) ENTROPY FIG -->
+    <div class="content-margin-container">
+      <div class="margin-left-block">
+      </div>
+      <div class="main-content-block">
+        <!-- figure for heavy-tailed AR1 attention -->
+        <img src="./images/AR1_entropy.png"
+             width="650px"
+             style="display:block; margin:15px auto 25px auto;"/>
+      </div>
+      <div class="margin-right-block">
+        <b>Figure 5.</b><br>
+        Entropy heatmaps for the heavy-tailed AR(1) model, showing localized collapses at outlier positions.
       </div>
     </div>
 
@@ -626,7 +552,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 5.</b><br>
+        <b>Figure 6.</b><br>
         Example jump-diffusion time series: a mostly smooth random walk punctuated by occasional large jumps.
       </div>
     </div>
@@ -642,7 +568,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 6.</b><br>
+        <b>Figure 7.</b><br>
         Training and validation loss curves for the jump-diffusion dataset, showing limited generalization beyond the smooth diffusion component.
       </div>
     </div>
@@ -663,7 +589,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 7.</b><br>
+        <b>Figure 8.</b><br>
         Attention heatmaps on jump-diffusion sequences, with attention concentrated near the most recent timesteps and sporadic responses to jump events.
       </div>
     </div>
@@ -677,7 +603,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 8.</b><br>
+        <b>Figure 9.</b><br>
         Entropy heatmaps on jump-diffusion sequences, showing low entropy near recent timesteps and sporadic drops corresponding to jump events.
       </div>
     </div>
@@ -714,7 +640,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 9.</b><br>
+        <b>Figure 10.</b><br>
         Example TrendBreaks time series with piecewise-linear segments and abrupt slope changes.
       </div>
     </div>
@@ -730,7 +656,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 10.</b><br>
+        <b>Figure 11.</b><br>
         Training and validation loss on TrendBreaks, where both quickly converge, reflecting the learnable piecewise-linear structure.
       </div>
     </div>
@@ -742,7 +668,8 @@
       <div class="main-content-block">
 		
 		<p>The Transformer performs substantially better on TrendBreaks than on the stochastic or heavy-tailed generators. Training loss falls rapidly toward zero, and validation loss drops sharply before stabilizing at a low plateau, indicating that the model successfully learns the underlying structure of the dataset. This behavior reflects the nature of the TrendBreaks process: the time series consists of long, smooth linear segments with small Gaussian noise, punctuated by a small number of abrupt slope changes. While the exact locations of these breaks are unpredictable, the piecewise-linear trends themselves are highly regular and therefore easy for the model to learn. </p>
-    <p>The attention maps further confirm this interpretation. Layer 0 (Heads 0–3) consistently show broad, diffuse vertical bands rather than narrow spikes. Head 1 and Head 3, in particular, place noticeable vertical mass near the rightmost 10–20 positions, indicating strong recency bias used to estimate the current slope. Layer 1 (Heads 0–3) amplifies this behavior as attention becomes denser and more textured, suggesting that the model refines its estimate of the current regime by pooling information from multiple segments. The lack of strong diagonal patterns is consistent with the piecewise-linear nature of the signal: slope estimation requires comparing values across longer horizons rather than attending to a fixed lag. Overall, the Transformer learns stable and generalizable attention patterns that align with the deterministic structure of the TrendBreaks process, yielding strong out-of-sample performance despite the unpredictability of the break locations.</p>
+      <p>The attention maps further confirm this interpretation. Layer 0 (Heads 0–3) consistently show broad, diffuse vertical bands rather than narrow spikes. Head 1 and Head 3, in particular, place noticeable vertical mass near the rightmost 10–20 positions, indicating strong recency bias used to estimate the current slope. Layer 1 (Heads 0–3) amplifies this behavior as attention becomes denser and more textured, suggesting that the model refines its estimate of the current regime by pooling information from multiple segments. The lack of strong diagonal patterns is consistent with the piecewise-linear nature of the signal: slope estimation requires comparing values across longer horizons rather than attending to a fixed lag and these behavioral have also been confirmed by entropy graphs. Overall, the Transformer learns stable and generalizable attention patterns that align with the deterministic structure of the TrendBreaks process, yielding strong out-of-sample performance despite the unpredictability of the break locations.
+</p>
     
 		<!-- figure for trendbreak attention -->
         <img src="./images/trend_attention.png"
@@ -750,8 +677,24 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 11.</b><br>
+        <b>Figure 12.</b><br>
         Attention maps on TrendBreaks, with diffuse focus over many lags and stronger weight on recent timesteps used to infer current slope.
+      </div>
+    </div>
+
+    <!-- TREND ENTROPY FIG -->
+    <div class="content-margin-container">
+      <div class="margin-left-block">
+      </div>
+      <div class="main-content-block">
+        <!-- figure for trendbreak attention -->
+        <img src="./images/trend_entropy.png"
+             width="650px"
+             style="display:block; margin:15px auto 25px auto;"/>
+      </div>
+      <div class="margin-right-block">
+        <b>Figure 13.</b><br>
+        Entropy maps on TrendBreaks showing moderate variability without sharp collapses, consistent with broad attention patterns.
       </div>
     </div>
 
@@ -789,7 +732,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 12.</b><br>
+        <b>Figure 14.</b><br>
         SeasonTrendOutliers time series combining linear trend, sinusoidal seasonality, Gaussian noise, and occasional large outliers.
       </div>
     </div>
@@ -805,7 +748,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 13.</b><br>
+        <b>Figure 15.</b><br>
         Training and validation loss for SeasonTrendOutliers, where both rapidly converge and track closely despite occasional outliers.
       </div>
     </div>
@@ -826,7 +769,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 14.</b><br>
+        <b>Figure 16.</b><br>
         Attention maps on SeasonTrendOutliers showing broad, smooth focus with subtle bands at seasonal lags, consistent with learned periodic structure.
       </div>
     </div>
@@ -841,7 +784,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 15.</b><br>
+        <b>Figure 17.</b><br>
         Entropy maps on SeasonTrendOutliers showing moderate oscillations aligned with seasonal phases, indicating heads specializing in periodic structure.
       </div>
     </div>
@@ -871,7 +814,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 16.</b><br>
+        <b>Figure 18.</b><br>
         MultiSeasonality time series constructed from two overlapping sinusoidal components with different amplitudes, frequencies, and phase shifts.
       </div>
     </div>
@@ -887,7 +830,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 17.</b><br>
+        <b>Figure 19.</b><br>
         Training and validation loss on MultiSeasonality, where both converge to low, nearly identical values due to the highly deterministic structure.
       </div>
     </div>
@@ -899,18 +842,31 @@
       <div class="main-content-block">
 		
         <p>Because these oscillations are fully deterministic, the Transformer learns them quickly: both training and validation loss drop sharply in the first few epochs and converge to the same low value, showing that the model captures the underlying periodic structure almost perfectly. </p>
-        <p>The attention maps reflect this directly. Many heads display grid-like or checkerboard patterns, reflecting the interaction between the short- and long-period cycles. In Layer 0, heads such as L0H0 and L0H1 form evenly spaced vertical bands aligned with the short-period cycle, while L0H2 tracks the longer cycle with broader, slower-spaced columns; L0H3 mixes both frequencies, producing faint checkerboard patterns where the two seasonalities overlap. In Layer 1 these structures are sharpened.</p>
-        <p>This result shows that each seasonal component induces dependencies at consistent lags, attention concentrates on regularly spaced columns—positions separated by one cycle of each sinusoid.</p>
-        <p>The entropy curves echo this specialization—fast-cycle heads show rhythmic oscillations in entropy across the window, while slow-cycle heads maintain higher, smoother entropy consistent with broader contextual dependence. Overall, the Transformer learns a clean multi-scale decomposition of the signal, attending to specific positions that match the phase of each seasonal component, which explains its near-perfect generalization on this dataset.</p>
-    
+        <p>The attention maps reflect this directly. Many heads display grid-like or checkerboard patterns, reflecting the interaction between the short- and long-period cycles. In Layer 0, heads such as L0H0 and L0H1 form evenly spaced vertical bands aligned with the short-period cycle, while L0H2 tracks the longer cycle with broader, slower-spaced columns; L0H3 mixes both frequencies, producing faint checkerboard patterns where the two seasonalities overlap. In Layer 1 these structures are sharpened. The entropy curves mirror this specialization: heads focused on the fast cycle show strong oscillations in entropy across positions, whereas heads aligned with the slow cycle maintain smoother, higher entropy consistent with broader receptive fields. This result shows that each seasonal component induces dependencies at consistent lags, attention concentrates on regularly spaced columns—positions separated by one cycle of each sinusoid. </p>
         <!-- figure for multiseason attention -->
         <img src="./images/multi_attention.png"
              width="650px"
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 18.</b><br>
-        Attention maps on MultiSeasonality forming grid-like/ checkerboard patterns that align with the interacting short- and long-period cycles.
+        <b>Figure 20.</b><br>
+        Attention maps on MultiSeasonality forming grid-like or checkerboard patterns that align with the interacting short- and long-period cycles.
+      </div>
+    </div>
+
+    <!-- MULTI ENTROPY FIG -->
+    <div class="content-margin-container">
+      <div class="margin-left-block">
+      </div>
+      <div class="main-content-block">
+        <!-- figure for multiseason attention -->
+        <img src="./images/multi_entropy.png"
+             width="650px"
+             style="display:block; margin:15px auto 25px auto;"/>
+      </div>
+      <div class="margin-right-block">
+        <b>Figure 21.</b><br>
+        Entropy maps on MultiSeasonality showing strong oscillations in heads focused on the fast cycle and smoother patterns in heads aligned with the slow cycle.
       </div>
     </div>
 
@@ -939,7 +895,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 19.</b><br>
+        <b>Figure 22.</b><br>
         S&amp;P 500 index time series used in our experiments, illustrating noisy evolution with occasional large moves.
       </div>
     </div>
@@ -955,7 +911,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 20.</b><br>
+        <b>Figure 23.</b><br>
         Training and validation loss on the S&amp;P 500 dataset, with validation loss plateauing at a relatively high level.
       </div>
     </div>
@@ -981,7 +937,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 21.</b><br>
+        <b>Figure 24.</b><br>
         Attention maps on S&amp;P 500 daily returns (top) and corresponding attention entropy curves (bottom), showing strong recency focus with weak, noisy grid-like structure.
       </div>
     </div>
@@ -1009,7 +965,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 22.</b><br>
+        <b>Figure 25.</b><br>
         Solar power generation time series with strong daily cycles and longer-term seasonal variation.
       </div>
     </div>
@@ -1025,7 +981,7 @@
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 23.</b><br>
+        <b>Figure 26.</b><br>
         Training and validation loss on the Solar dataset, both decreasing smoothly and remaining tightly aligned.
       </div>
     </div>
@@ -1038,21 +994,23 @@
 		
         <p>The Transformer trains cleanly on the Solar dataset, with training and validation loss dropping rapidly and staying tightly aligned, indicating that the underlying structure is highly learnable and generalizes well. Solar generation is dominated by strong, repeatable cycles—especially the daily irradiance pattern—so the model quickly locks onto these periodic features, and subsequent epochs primarily refine smaller weather-driven deviations. The smooth convergence reflects the regularity of the signal and the ease with which a Transformer can exploit stable seasonal structure.</p>
         <p>The attention maps show two dominant structures: vertical stripes at fixed lags (the model repeatedly attends to “same time yesterday”) and grid-like lattices created by interactions between daily periodicity, sub-daily cloud fluctuations, and slow seasonal drift—closely matching the behavior seen in MultiSeasonality. Entropy patterns mirror these structures. Heads like L0H1 and L1H1 maintain high, smooth entropy consistent with broad seasonal integration, whereas heads such as L1H3 show sharp entropy drops aligned with bright vertical bands, indicating precise phase-aligned focus. Overall, the Solar dataset exhibits clean multi-scale periodicity, and the Transformer captures it efficiently with structured, interpretable attention.</p>
-		<!-- figure for solar attention -->
+        <!-- figure for SP500 attention -->
         <img src="./images/solar_attention.png"
              width="650px"
              style="display:block; margin:15px auto 25px auto;"/>
+        
 		
-		<!-- figure for solar entropy -->
+		<!-- figure for SP500 entropy -->
         <img src="./images/solar_entropy.png"
              width="650px"
              style="display:block; margin:15px auto 25px auto;"/>
       </div>
       <div class="margin-right-block">
-        <b>Figure 24.</b><br>
-        Attention maps and entropy for Solar, showing strong daily-lag bands and grid-like structure closely mirroring the MultiSeasonality synthetic generator.
+        <b>Figure 27.</b><br>
+        Attention maps on Solar daily irradiance (top) and corresponding attention entropy curves (bottom), showing clean multi-scale periodicity with structured, interpretable focus.
       </div>
     </div>
+
 
     <!-- CONCLUSION -->
     <div class="content-margin-container" id="conclusion">
@@ -1061,9 +1019,9 @@
       <div class="main-content-block">
         <h1>Conclusion</h1>
 
-        <p>The attention maps show two dominant structures: vertical stripes at fixed lags (the model repeatedly attends to “same time yesterday”) and grid-like lattices created by interactions between daily periodicity, sub-daily cloud fluctuations, and slow seasonal drift—closely matching the behavior seen in MultiSeasonality. Entropy patterns mirror these structures. Heads like L0H1 and L1H1 maintain high, smooth entropy consistent with broad seasonal integration, whereas heads such as L1H3 show sharp entropy drops aligned with bright vertical bands, indicating precise phase-aligned focus. Overall, the Solar dataset exhibits clean multi-scale periodicity, and the Transformer captures it efficiently with structured, interpretable attention.</p>
+        <p>Across all synthetic and real datasets, our findings show that Transformer attention is not arbitrary but distribution-dependent: heavy-tailed and jump-driven processes produce sharp recency-focused attention; trend- or regime-driven series yield broad diffuse patterns; and periodic datasets reliably generate clean seasonal grids. These behaviors align closely with the underlying statistical structure of each generator, demonstrating that attention maps can meaningfully reflect temporal dynamics—but only when the data contain stable, learnable structure. Real datasets reinforce this mapping: the S&P 500 mirrors JumpDiffusion with weak seasonality, while Solar closely matches MultiSeasonality, validating that insights from synthetic experiments transfer to real-world settings.</p>
         <p>At the same time, the project also reveals clear limitations: attention becomes unstable and uninformative in processes dominated by randomness or discontinuous shocks, and validation performance stalls precisely when attention degenerates. We find that these breakdowns stem from mismatched inductive biases—standard self-attention cannot model rare jumps, noise-dominated segments, or weak long-range structure reliably.</p>
-        <p>These observations point to several concrete directions for future work. Architecturally, extending the study beyond a basic encoder-only Transformer to Informer-style ProbSparse attention, Autoformer-style auto-correlation, or multi-scale convolutions may improve inductive bias and robustness to noise. From a preprocessing perspective, denoising pipelines like wavelets, STL decomposition, EMA detrending, jump filtering could help isolate meaningful structure before attention is computed. Because our study focuses deliberately on univariate series to isolate distributional effects, an important next step is to investigate how these findings change in multivariate settings, where feature engineering and variable selection become domain-dependent and may meaningfully enhance forecasting performance. Overall, while our results show that attention reveals temporal structure only when that structure is present and learnable, future work should explore architectures and preprocessing strategies that keep attention stable and interpretable even in noisy, irregular, or shock-dominated environments.</p>  
+        <p>These observations point to several concrete directions for future work. Architecturally, extending the study beyond a basic encoder-only Transformer to Informer-style ProbSparse attention, Autoformer-style auto-correlation, or multi-scale convolutions may improve inductive bias and robustness to noise. From a preprocessing perspective, denoising pipelines like wavelets, STL decomposition, EMA detrending, jump filtering could help isolate meaningful structure before attention is computed. Because our study focuses deliberately on univariate series to isolate distributional effects, an important next step is to investigate how these findings change in multivariate settings, where feature engineering and variable selection become domain-dependent and may meaningfully enhance forecasting performance. Overall, while our results show that attention reveals temporal structure only when that structure is present and learnable, future work should explore architectures and preprocessing strategies that keep attention stable and interpretable even in noisy, irregular, or shock-dominated environments.</p>
       </div>
       <div class="margin-right-block">
       </div>
