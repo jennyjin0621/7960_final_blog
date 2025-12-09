@@ -288,29 +288,24 @@
 						<h1>Introduction</h1>
 
             <p>
-              Transformers have rapidly become a go-to architecture for time series modeling,yet we still lack a clear understanding of what their attention mechanisms actually learn on temporal data.In natural language, attention weights can sometimes be linked to meaningful word dependencies, but in time series tasks, the story is more complicated. Forecasting models often assume that attention will highlight “important” timesteps and that these weights reveal the driving structure behind predictions. Whether this assumption holds—and under what distributional conditions—remains an open question.
+              Transformers have rapidly become a go-to architecture for time series modeling, yet we still lack a clear understanding of what their attention mechanisms actually learn on temporal data. In natural language, attention weights can sometimes be linked to meaningful word dependencies, but in time series tasks the story is more complicated. Forecasting models often assume that attention will highlight important timesteps and that these weights reveal the underlying temporal structure driving predictions. Whether this assumption holds—and under what <em>distributional </em>conditions—remains an open question.
             </p>
 
             <p>
-              In this project, one of the fundamental questions we try to explore is for which statistical structures in time series does Transformer attention behave in a meaningful, interpretable way, and when does it become misleading or degenerate? And our hypothesis is that self-attention behaves meaningfully only when the data contain stable lag structure (e.g., periodicity, smooth trends), and degenerates into recency bias or noise-amplifying patterns when the process contains jumps, heavy tails, or non-stationary volatility.
-            </p>
-
+              This project investigates a fundamental issue: for which statistical structures in a time series does Transformer attention behave in a meaningful, interpretable way, and when does it become misleading or degenerate? To answer this, we analyze learned attention using attention heatmaps, supported by quantitative measures such as layer entropy and forecasting error (MSE). Our hypothesis is that self-attention produces coherent, interpretable patterns only when the data contain stable lag structure (e.g., periodicity, smooth trends, low-noise stationarity). In contrast, we expect attention to collapse into recency bias, high-entropy diffusion, or noise-amplifying behavior when the process contains jumps, heavy-tailed shocks, volatility clustering, or other forms of non-stationarity.
             <p>
-            Models are trained on synthetic time series with known generating processes (eg.GARCH(1,1), jump diffusion, regime switching etc) as well as on real financial data (e.g., S&P 500 daily prices). This setup lets us ask precise questions:
+              To test this hypothesis, we train identical Transformer models on synthetic time series generated from processes with known structure (e.g., jump diffusion, trend breaks) as well as on real financial data (e.g., S&P 500 daily prices). This controlled setup allows us to ask precise questions:
             </p>
 
 			<ul>
 				<li>
-          When there are jumps, volatility clusters, or regime shifts, do dense and sparse attention behave differently?
+          <b>How do attention patterns differ when the underlying process exhibits stable lag structure versus jumps, volatility clusters, or regime shifts?</b>
 				</li>
 				<li>
-          Do we see meaningful low-entropy, localized attention around true structural events, or high-entropy diffuse maps?
-				</li>
+          <b> Do we observe meaningful, low-entropy, localized attention around true structural events, or do the maps become diffuse or dominated by recency?</b>
+        </li>
 			</ul>
 
-            <p>
-              Methodologically, we treat attention maps as signals to be explained, not as proof of interpretability. We combine <b>attention heatmaps, each layer entropy, and forecasting error (MSE)</b> to anchor our interpretability claims in predictive performance.
-            </p>
 		    </div>
 		    <div class="margin-right-block">
 					<b>Big picture</b><br><br>
@@ -385,7 +380,9 @@
 
             <h2>Overview of Analytical Pipeline</h2>
 
-            <p>Our methodology is designed to isolate how the distributional structure of a time series influences attention behavior in Transformers. The analysis follows a fixed pipeline across all experiments:</p>
+            <p>
+              Our methodology is designed to isolate how the distributional structure of a time series influences attention behavior in Transformers. The analysis follows a fixed pipeline across all experiments:
+            </p>
             <ol>
               <li><b>Generate synthetic time series</b>, each constructed to contain one dominant statistical property (heavy tails, jumps, trend shifts, seasonality, multi-seasonality).</li>
               <li><b>Normalize and split</b> each series into train/validation/test sets.</li>
@@ -411,7 +408,7 @@
             <h2>Synthetic Data Generation</h2>
 
               <p>
-                To study how individual statistical properties affect attention, we generate univariate time series where each generator embodies exactly one dominant regime. Table 1 summarizes the generators and their key parameters.
+                To study how individual statistical properties affect attention, we generate univariate time series where <b> each generator embodies exactly one dominant regime.</b> Table 1 summarizes the generators and their key parameters.
               </p>
               </div>
 
@@ -481,13 +478,7 @@
                   <p> 
                     Each series has length 2000 and is split into 70% train, 15% validation, 15% test. All series are standardized using training-set statistics to prevent scale differences from influencing attention.
                   </p>
-                  <p>These synthetic datasets enable controlled tests of whether attention maps reflect:</p>
-                  <ul>
-                    <li><b>Lag structure</b> (AR(1), trend estimation)</li>
-                    <li><b>Volatility clustering or uncertainty </b> (heavy tails, jumps)</li>
-                    <li><b>Periodic recurrence</b> (seasonal and multi-seasonal patterns)</li>
-                    <li><b>Regime segmentation</b> (trend breaks)</li>
-                  </ul>
+                  <p>These synthetic datasets enable controlled tests of whether attention maps reflect: Lag structure, Volatility clustering or uncertainty, Periodic recurrence, Regime segmentation (trend breaks). </p>
                 </div>
                 <div class="margin-right-block">
                 </div>
@@ -536,7 +527,7 @@
             </li>
             <p></p>
 
-            <li>
+            <!-- <li>
               <b>Top-k Mass Concentration</b>
               <p>Measures how much attention mass is concentrated on a few timesteps:</p>
               <p>
@@ -562,7 +553,7 @@
                 <li>High HSI → diverse specialized heads</li>
                 <li>Low HSI → head collapse (common in noisy data)</li>
               </ul>
-            </li>
+            </li> -->
           </ol>
         </div>
         <div class="margin-right-block">
@@ -1154,9 +1145,9 @@
         <h1>Conclusion</h1>
 
         <p>Across all synthetic and real datasets, our results support the central hypothesis: <b> Transformer attention is a natural way to capture learnable, interpretable patterns in time series data. </b>Transformer attention is meaningful only when the underlying time series contains stable, learnable structure. Heavy-tailed and jump-driven processes produce sharp, recency-dominated attention; trend- or regime-driven series yield broad, diffuse patterns; and periodic data reliably generate clean seasonal grids. These behaviors closely match the statistical properties of each generator. Real datasets reinforce this mapping—the S&P 500 resembles a JumpDiffusion with weak seasonality, while Solar aligns with MultiSeasonality—showing that insights from controlled synthetic settings transfer to real-world time series.</p>
-        <p>At the same time, the project also reveals clear limitations: attention becomes unstable and uninformative in processes dominated by randomness or discontinuous shocks, and validation performance stalls precisely when attention degenerates. These failures stem from inductive bias mismatches: a vanilla Transformer has no mechanism to model rare jumps, rapidly shifting volatility, or long-memory processes, and its attention maps reflect these constraints rather than true temporal dependencies.</p>
+        <p>At the same time, the project also reveals clear limitations: attention becomes unstable and uninformative in processes dominated by randomness or discontinuous shocks, and validation performance stalls precisely when attention degenerates. These failures stem from <b>inductive bias mismatches:</b> a vanilla Transformer has no mechanism to model rare jumps, rapidly shifting volatility, or long-memory processes, and its attention maps reflect these constraints rather than true temporal dependencies.</p>
         <p>These observations point to several concrete directions for future work. Architecturally, extending the study beyond a basic encoder-only Transformer to Informer-style ProbSparse attention, Autoformer-style auto-correlation, or multi-scale convolutions may improve inductive bias and robustness to noise. From a preprocessing perspective, denoising pipelines like wavelets, STL decomposition, EMA detrending, jump filtering could help isolate meaningful structure before attention is computed. Because our study focuses deliberately on univariate series to isolate distributional effects, an important next step is to investigate how these findings change in multivariate settings, where feature engineering and variable selection become domain-dependent and may meaningfully enhance forecasting performance.</p>
-        <p>Overall, while Transformers can produce interpretable attention patterns when structure is present, <b>stable interpretability requires either stable data or architectures designed to handle instability.</b> Future work should develop models and preprocessing pipelines that preserve meaningful attention even in noisy, irregular, or shock-dominated environments.</p>
+        <p>Overall, while Transformers can produce interpretable attention patterns when structure is present, stable interpretability requires either stable data or architectures designed to handle instability. Future work should develop models and preprocessing pipelines that preserve meaningful attention even in noisy, irregular, or shock-dominated environments.</p>
       </div>
       <div class="margin-right-block">
       </div>
